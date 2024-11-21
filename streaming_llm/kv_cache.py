@@ -68,7 +68,23 @@ class StartRecentKVCache:
             return None
         seq_len = past_key_values[0][0].size(self.k_seq_dim)
         if seq_len + num_coming <= self.cache_size:
+            print(
+                "No need to evict yet. seq_len:",
+                seq_len,
+                "num_coming",
+                num_coming,
+                "cache size",
+                self.cache_size,
+            )
             return past_key_values
+        print(
+            "Evicting for space. seq_len:",
+            seq_len,
+            "num_coming",
+            num_coming,
+            "cache size",
+            self.cache_size,
+        )
         return [
             [
                 torch.cat(
