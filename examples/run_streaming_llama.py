@@ -54,31 +54,38 @@ def greedy_generate(model, tokenizer, input_ids, past_key_values, max_gen_len):
         if pred_token_idx == tokenizer.eos_token_id:
             break
     print(" ".join(generated_text[pos:]), flush=True)
-    return past_key_values
+    return past_key_values, generated_ids
 
 
 @torch.no_grad()
 def streaming_inference(model, tokenizer, prompts, kv_cache=None, max_gen_len=1000):
     past_key_values = None
+    history_token_ids = []
     for idx, prompt in enumerate(prompts):
         prompt = "USER: " + prompt + "\n\nASSISTANT: "
         print("\n" + prompt, end="")
         input_ids = tokenizer(prompt, return_tensors="pt").input_ids
+        history_token_ids += input_ids.tolist()[0]
         input_ids = input_ids.to(model.device)
         seq_len = input_ids.shape[1]
         if kv_cache is not None:
             space_needed = seq_len + max_gen_len
-            past_key_values = kv_cache.evict_for_space(past_key_values, space_needed)
+            past_key_values, history_token_ids = kv_cache.evict_for_space(
+                past_key_values, space_needed, tokenizer, history_token_ids
+            )
 
-        past_key_values = greedy_generate(
+        past_key_values, generated_ids = greedy_generate(
             model, tokenizer, input_ids, past_key_values, max_gen_len=max_gen_len
         )
+        history_token_ids += generated_ids
 
 
 def main(args):
     model_name_or_path = args.model_name_or_path
+    dataset_name = args.dataset_name
+    max_gen_len = args.max_gen_len
     model, tokenizer = load(model_name_or_path)
-    test_filepath = os.path.join(args.data_root, "mt_bench.jsonl")
+    test_filepath = os.path.join(args.data_root, "{}.jsonl".format(dataset_name))
     print(f"Loading data from {test_filepath} ...")
 
     if not os.path.exists(test_filepath):
@@ -105,6 +112,7 @@ def main(args):
         tokenizer,
         prompts,
         kv_cache,
+        max_gen_len,
     )
 
 
@@ -114,9 +122,11 @@ if __name__ == "__main__":
         "--model_name_or_path", type=str, default="lmsys/vicuna-13b-v1.3"
     )
     parser.add_argument("--data_root", type=str, default="data/")
+    parser.add_argument("--dataset_name", type=str, default="mt_bench")
     parser.add_argument("--enable_streaming", action="store_true")
     parser.add_argument("--start_size", type=int, default=4)
     parser.add_argument("--recent_size", type=int, default=2000)
+    parser.add_argument("--max_gen_len", type=int, default=1000)
     args = parser.parse_args()
 
     main(args)

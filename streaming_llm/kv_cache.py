@@ -63,29 +63,49 @@ class StartRecentKVCache:
             for k, v in past_key_values
         ]
 
-    def evict_for_space(self, past_key_values, num_coming):
+    def evict_for_space(
+        self, past_key_values, num_coming, tokenizer, history_token_ids
+    ):
         if past_key_values is None:
-            return None
+            return None, history_token_ids
+        # print(past_key_values[0][0].shape) # (torch.Size([1, 32, 46, 128]))
+        # (batch_size, num_heads, sequence_length, embed_size_per_head)
+        # Llama2 7B has 32 attention heads34. Each of its 32 layers contains 32 attention heads, resulting in a total of 1024 attention head components7
+        # For Llama2 7B, the embedding size per attention head is 128. This can be calculated by dividing the total hidden size (4096) by the number of attention heads (32)23. Each of the 32 attention heads processes a 128-dimensional slice of the full 4096-dimensional embedding, allowing the model to focus on different aspects of the input in parallel4
         seq_len = past_key_values[0][0].size(self.k_seq_dim)
         if seq_len + num_coming <= self.cache_size:
-            print(
-                "No need to evict yet. seq_len:",
-                seq_len,
-                "num_coming",
-                num_coming,
-                "cache size",
-                self.cache_size,
+            return past_key_values, history_token_ids
+
+        evicted_tokens_index_start = self.start_size
+        evicted_tokens_index_end = seq_len - self.recent_size + num_coming
+        evicted_tokens_ids = history_token_ids[
+            evicted_tokens_index_start:evicted_tokens_index_end
+        ]
+        evicted_tokens_text = " ".join(
+            tokenizer.decode(
+                evicted_tokens_ids,
+                skip_special_tokens=True,
+                clean_up_tokenization_spaces=True,
+                spaces_between_special_tokens=False,
             )
-            return past_key_values
-        print(
-            "Evicting for space. seq_len:",
-            seq_len,
-            "num_coming",
-            num_coming,
-            "cache size",
-            self.cache_size,
+            .strip()
+            .split(" ")
         )
-        return [
+        history_token_ids = (
+            history_token_ids[0:evicted_tokens_index_start]
+            + history_token_ids[evicted_tokens_index_end:]
+        )
+        print()
+        print()
+        print("-" * 100)
+        print(">> Evicting the following text")
+        print()
+        print(evicted_tokens_text)
+        print("-" * 100)
+        print()
+        print()
+
+        new_past_key_values = [
             [
                 torch.cat(
                     [
@@ -108,6 +128,7 @@ class StartRecentKVCache:
             ]
             for k, v in past_key_values
         ]
+        return new_past_key_values, history_token_ids
 
     def evict_range(self, past_key_values, start, end):
         if past_key_values is None:
