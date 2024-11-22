@@ -48,6 +48,15 @@ def parse_args():
     return args
 
 
+@torch.no_grad()
+def embed_text(text, model, tokenizer):
+    tokens = tokenizer(text, return_tensors="pt").input_ids.to(model.device)
+    model_output = model(input_ids=tokens, output_hidden_states=True)
+    embeddings = model_output.hidden_states[-1].mean(dim=1).cpu()[0].unsqueeze(0)
+    norm_embeddings = embeddings / torch.norm(embeddings, p=2)
+    return norm_embeddings
+
+
 def load(model_name_or_path):
     print(f"Loading model from {model_name_or_path} ...")
     # however, tensor parallel for running falcon will occur bugs

@@ -1,4 +1,5 @@
 import torch
+from streaming_llm.utils import embed_text
 
 
 def slice2d(x, start, end):
@@ -64,7 +65,7 @@ class StartRecentKVCache:
         ]
 
     def evict_for_space(
-        self, past_key_values, num_coming, tokenizer, history_token_ids
+        self, model, tokenizer, index, past_key_values, num_coming, history_token_ids
     ):
         if past_key_values is None:
             return None, history_token_ids
@@ -97,11 +98,25 @@ class StartRecentKVCache:
         )
         print()
         print()
-        print("-" * 100)
-        print(">> Evicting the following text")
+        print("-" * 200)
+        print(">>> Evicting the following text")
         print()
         print(evicted_tokens_text)
-        print("-" * 100)
+        chunks = evicted_tokens_text.split(".")
+        embedded_chunks = torch.cat(
+            [embed_text(chunk, model, tokenizer) for chunk in chunks], dim=0
+        )
+        # insert chunks in vector db
+        print()
+        index.add(embedded_chunks)
+        with open("data/embeddings.txt", "w") as file:
+            file.writelines([chunk.replace("\n", "\\n") + "\n" for chunk in chunks])
+        print(
+            ">>> Inserted {} chunks in the db. Total entries: {}".format(
+                len(embedded_chunks), index.ntotal
+            )
+        )
+        print("-" * 200)
         print()
         print()
 

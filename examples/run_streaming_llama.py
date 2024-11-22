@@ -9,9 +9,10 @@ import os
 import time
 import re
 import sys
+import faiss
 
 from tqdm import tqdm
-from streaming_llm.utils import load, download_url, load_jsonl
+from streaming_llm.utils import load, download_url, load_jsonl, embed_text
 from streaming_llm.enable_streaming_llm import enable_streaming_llm
 
 
@@ -57,21 +58,54 @@ def greedy_generate(model, tokenizer, input_ids, past_key_values, max_gen_len):
     return past_key_values, generated_ids
 
 
+def retrieve_from_db(model, tokenizer, index, query):
+    k = 2
+    embedded_query = embed_text(query, model, tokenizer)
+    distances, indices = index.search(embedded_query, k)
+    distances, indices = distances[0], indices[0]
+
+    docs = []
+    with open("data/embeddings.txt", "r") as file:
+        lines = file.readlines()
+        for i in indices:
+            if i == -1:
+                break
+            # TODO have a filter for min distance?
+            if distances[i] < 1:
+                docs.append(lines[i])
+
+    return docs
+
+
 @torch.no_grad()
-def streaming_inference(model, tokenizer, prompts, kv_cache=None, max_gen_len=1000):
+def streaming_inference(
+    model, tokenizer, prompts, index, kv_cache=None, max_gen_len=1000
+):
     past_key_values = None
     history_token_ids = []
     for idx, prompt in enumerate(prompts):
-        prompt = "USER: " + prompt + "\n\nASSISTANT: "
-        print("\n" + prompt, end="")
-        input_ids = tokenizer(prompt, return_tensors="pt").input_ids
+        # "USER: " + prompt + "\n\nASSISTANT: "
+        formatted_prompt = "USER: " + prompt
+        retrieved_docs = retrieve_from_db(model, tokenizer, index, prompt)
+        if retrieved_docs:
+            formatted_prompt += "\n\nRELEVANT INFORMATION: "
+            for i, doc in enumerate(retrieved_docs):
+                formatted_prompt += "{}. {}".format(i + 1, doc)
+        formatted_prompt += "\n\nASSISTANT: "
+        print("\n" + formatted_prompt, end="")
+        input_ids = tokenizer(formatted_prompt, return_tensors="pt").input_ids
         history_token_ids += input_ids.tolist()[0]
         input_ids = input_ids.to(model.device)
         seq_len = input_ids.shape[1]
         if kv_cache is not None:
             space_needed = seq_len + max_gen_len
             past_key_values, history_token_ids = kv_cache.evict_for_space(
-                past_key_values, space_needed, tokenizer, history_token_ids
+                model,
+                tokenizer,
+                index,
+                past_key_values,
+                space_needed,
+                history_token_ids,
             )
 
         past_key_values, generated_ids = greedy_generate(
@@ -107,10 +141,24 @@ def main(args):
     else:
         kv_cache = None
 
+    embeddings_dimension = None
+    if "Llama-2-7b" in args.model_name_or_path:
+        embeddings_dimension = 4096
+    else:
+        raise "Uknown embeddings_dimension"
+
+    index = faiss.IndexFlatL2(embeddings_dimension)
+    with open("data/embeddings.txt", "w") as file:
+        pass
+
+    if index.ntotal == 0:
+        print("Vector DB is initialized and is empty.")
+
     streaming_inference(
         model,
         tokenizer,
         prompts,
+        index,
         kv_cache,
         max_gen_len,
     )
