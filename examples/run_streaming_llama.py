@@ -70,7 +70,7 @@ def retrieve_from_db(model, tokenizer, index, query):
         for i in indices:
             if i == -1:
                 break
-            # TODO have a filter for min distance?
+            # NOTE this is a hyperparameter, I think 1 makes sense
             if distances[i] < 1:
                 docs.append(lines[i])
 
