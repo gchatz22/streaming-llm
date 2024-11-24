@@ -109,7 +109,7 @@ class StartRecentKVCache:
         # insert chunks in vector db
         print()
         index.add(embedded_chunks)
-        with open("data/embeddings.txt", "w") as file:
+        with open("data/embeddings.txt", "a") as file:
             file.writelines([chunk.replace("\n", "\\n") + "\n" for chunk in chunks])
         print(
             ">>> Inserted {} chunks in the db. Total entries: {}".format(

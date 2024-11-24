@@ -67,12 +67,13 @@ def retrieve_from_db(model, tokenizer, index, query):
     docs = []
     with open("data/embeddings.txt", "r") as file:
         lines = file.readlines()
-        for i in indices:
-            if i == -1:
+        for i, index in enumerate(indices):
+            if index == -1:
                 break
             # NOTE this is a hyperparameter, I think 1 makes sense
+            # NOTE ideally it should be 0.5
             if distances[i] < 1:
-                docs.append(lines[i])
+                docs.append(lines[index])
 
     return docs
 
@@ -88,9 +89,14 @@ def streaming_inference(
         formatted_prompt = "USER: " + prompt
         retrieved_docs = retrieve_from_db(model, tokenizer, index, prompt)
         if retrieved_docs:
-            formatted_prompt += "\n\nRELEVANT INFORMATION: "
+            formatted_prompt += (
+                "Providing below some context that you may or may not find useful\n"
+            )
+            formatted_prompt += "CONTEXT: "
             for i, doc in enumerate(retrieved_docs):
-                formatted_prompt += "{}. {}".format(i + 1, doc)
+                formatted_prompt += "<doc {}> {} </doc {}>".format(
+                    i + 1, doc.strip("\n"), i + 1
+                )
         formatted_prompt += "\n\nASSISTANT: "
         print("\n" + formatted_prompt, end="")
         input_ids = tokenizer(formatted_prompt, return_tensors="pt").input_ids
