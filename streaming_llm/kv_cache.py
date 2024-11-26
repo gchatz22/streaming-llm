@@ -1,6 +1,6 @@
 import torch
 from streaming_llm.utils import embed_text
-
+import re
 
 def slice2d(x, start, end):
     return x[:, :, start:end, ...]
@@ -64,7 +64,37 @@ class StartRecentKVCache:
             for k, v in past_key_values
         ]
 
-    def evict_for_space(
+    def evict_for_space(self, past_key_values, num_coming):
+        if past_key_values is None:
+            return None
+        seq_len = past_key_values[0][0].size(self.k_seq_dim)
+        if seq_len + num_coming <= self.cache_size:
+            return past_key_values
+        return [
+            [
+                torch.cat(
+                    [
+                        self.k_slice(k, 0, self.start_size),
+                        self.k_slice(
+                            k, seq_len - self.recent_size + num_coming, seq_len
+                        ),
+                    ],
+                    dim=self.k_seq_dim,
+                ),
+                torch.cat(
+                    [
+                        self.v_slice(v, 0, self.start_size),
+                        self.v_slice(
+                            v, seq_len - self.recent_size + num_coming, seq_len
+                        ),
+                    ],
+                    dim=self.v_seq_dim,
+                ),
+            ]
+            for k, v in past_key_values
+        ]
+
+    def evict_for_space_rag(
         self, model, tokenizer, index, past_key_values, num_coming, history_token_ids
     ):
         if past_key_values is None:
@@ -96,29 +126,38 @@ class StartRecentKVCache:
             history_token_ids[0:evicted_tokens_index_start]
             + history_token_ids[evicted_tokens_index_end:]
         )
-        print()
-        print()
-        print("-" * 200)
-        print(">>> Evicting the following text")
-        print()
-        print(evicted_tokens_text)
-        chunks = evicted_tokens_text.split(".")
+        # print()
+        # print()
+        # print("-" * 200)
+        # print(">>> Evicting the following text")
+        # print()
+        # print(evicted_tokens_text)
+        # chunks = evicted_tokens_text.split(".")
+        # print('evict:')
+        # print(evicted_tokens_text)
+        # chunks = re.findall(r'.*?[.!?\n]', evicted_tokens_text)
+        # chunks = re.split(r'(?<=[.!?])|(?=(USER:|CONTEXT:|ASSISTANT:))', evicted_tokens_text)
+        # chunks = re.split(r'(?<=[.|!|?|USER:|CONTEXT:|ASSISTANT:])', evicted_tokens_text)
+        chunks = re.split(r'(?<=[.!?\n])', evicted_tokens_text)
+
+        chunks = [chunk.strip() for chunk in chunks if chunk and chunk.strip()]
+    
         embedded_chunks = torch.cat(
             [embed_text(chunk, model, tokenizer) for chunk in chunks], dim=0
         )
         # insert chunks in vector db
-        print()
+        # print()
         index.add(embedded_chunks)
         with open("data/embeddings.txt", "a") as file:
             file.writelines([chunk.replace("\n", "\\n") + "\n" for chunk in chunks])
-        print(
-            ">>> Inserted {} chunks in the db. Total entries: {}".format(
-                len(embedded_chunks), index.ntotal
-            )
-        )
-        print("-" * 200)
-        print()
-        print()
+        # print(
+        #     ">>> Inserted {} chunks in the db. Total entries: {}".format(
+        #         len(embedded_chunks), index.ntotal
+        #     )
+        # )
+        # print("-" * 200)
+        # print()
+        # print()
 
         new_past_key_values = [
             [
