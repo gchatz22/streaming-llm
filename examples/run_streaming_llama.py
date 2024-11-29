@@ -24,8 +24,8 @@ def greedy_generate(model, tokenizer, input_ids, past_key_values, max_gen_len):
         use_cache=True,
     )
     past_key_values = outputs.past_key_values
-    pred_token_idx = outputs.logits[:, -1, :].argmax(dim=-1).unsqueeze(1)
-    generated_ids = [pred_token_idx.item()]
+    pred_token_idx = outputs.logits[:, -1, :].argmax(dim=-1).unsqueeze(1).cpu()
+    generated_ids = [pred_token_idx]
     pos = 0
     for _ in range(max_gen_len - 1):
         outputs = model(
@@ -34,8 +34,8 @@ def greedy_generate(model, tokenizer, input_ids, past_key_values, max_gen_len):
             use_cache=True,
         )
         past_key_values = outputs.past_key_values
-        pred_token_idx = outputs.logits[:, -1, :].argmax(dim=-1).unsqueeze(1)
-        generated_ids.append(pred_token_idx.item())
+        pred_token_idx = outputs.logits[:, -1, :].argmax(dim=-1).unsqueeze(1).cpu()
+        generated_ids.append(pred_token_idx)
         generated_text = (
             tokenizer.decode(
                 generated_ids,
@@ -101,7 +101,7 @@ def streaming_inference(
         print("\n" + formatted_prompt, end="")
         input_ids = tokenizer(formatted_prompt, return_tensors="pt").input_ids
         history_token_ids += input_ids.tolist()[0]
-        input_ids = input_ids.to(model.device)
+        input_ids = input_ids.to("cuda")
         seq_len = input_ids.shape[1]
         if kv_cache is not None:
             space_needed = seq_len + max_gen_len

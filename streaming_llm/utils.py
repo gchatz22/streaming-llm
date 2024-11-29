@@ -50,9 +50,9 @@ def parse_args():
 
 @torch.no_grad()
 def embed_text(text, model, tokenizer):
-    tokens = tokenizer(text, return_tensors="pt").input_ids.to(model.device)
-    model_output = model(input_ids=tokens, output_hidden_states=True)
-    embeddings = model_output.hidden_states[-1].mean(dim=1).cpu()[0].unsqueeze(0)
+    tokens = tokenizer(text, return_tensors="pt").input_ids
+    model_output = model(input_ids=tokens, output_hidden_states=True).cpu()
+    embeddings = model_output.hidden_states[-1].mean(dim=1)[0].unsqueeze(0)
     norm_embeddings = embeddings / torch.norm(embeddings, p=2)
     return norm_embeddings
 
@@ -70,6 +70,7 @@ def load(model_name_or_path):
         torch_dtype=torch.float16,
         trust_remote_code=True,
     )
+    model.to("cuda")
     if tokenizer.pad_token_id is None:
         if tokenizer.eos_token_id is not None:
             tokenizer.pad_token_id = tokenizer.eos_token_id
