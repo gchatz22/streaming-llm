@@ -24,7 +24,7 @@ def greedy_generate(model, tokenizer, input_ids, past_key_values, max_gen_len):
         use_cache=True,
     )
     past_key_values = outputs.past_key_values
-    pred_token_idx = outputs.logits[:, -1, :].argmax(dim=-1).unsqueeze(1).cpu()
+    pred_token_idx = outputs.logits[:, -1, :].argmax(dim=-1).unsqueeze(1)
     generated_ids = [pred_token_idx]
     pos = 0
     for _ in range(max_gen_len - 1):
@@ -34,8 +34,8 @@ def greedy_generate(model, tokenizer, input_ids, past_key_values, max_gen_len):
             use_cache=True,
         )
         past_key_values = outputs.past_key_values
-        pred_token_idx = outputs.logits[:, -1, :].argmax(dim=-1).unsqueeze(1).cpu()
-        generated_ids.append(pred_token_idx)
+        pred_token_idx = outputs.logits[:, -1, :].argmax(dim=-1).unsqueeze(1)
+        generated_ids.append(pred_token_idx.cpu())
         generated_text = (
             tokenizer.decode(
                 generated_ids,
