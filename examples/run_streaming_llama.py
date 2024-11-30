@@ -114,6 +114,7 @@ def streaming_inference(
                 history_token_ids,
             )
 
+        past_key_values = past_key_values.to("cuda")
         past_key_values, generated_ids = greedy_generate(
             model, tokenizer, input_ids, past_key_values, max_gen_len=max_gen_len
         )
