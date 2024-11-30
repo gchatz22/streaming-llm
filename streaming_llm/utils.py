@@ -50,7 +50,7 @@ def parse_args():
 
 @torch.no_grad()
 def embed_text(text, model, tokenizer):
-    tokens = tokenizer(text, return_tensors="pt").input_ids
+    tokens = tokenizer(text, return_tensors="pt").input_ids.to("cuda")
     model_output = model(input_ids=tokens, output_hidden_states=True).cpu()
     embeddings = model_output.hidden_states[-1].mean(dim=1)[0].unsqueeze(0)
     norm_embeddings = embeddings / torch.norm(embeddings, p=2)
