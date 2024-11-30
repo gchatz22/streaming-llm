@@ -140,21 +140,22 @@ def streaming_inference_rag(
     past_key_values = None
     history_token_ids = []
     for idx, prompt in enumerate(prompts):
-        formatted_prompt = 'USER: ' + prompt + '\n'
+        prompt_text = ''
         retrieved_docs = retrieve_from_db(model, tokenizer, index, prompt)
         if retrieved_docs:
-            formatted_prompt += (
+            prompt_text += (
                 "Providing below some context that you may or may not find useful. \n"
             )
-            formatted_prompt += "CONTEXT: "
+            prompt_text += "CONTEXT: "
             for i, doc in enumerate(retrieved_docs):
-                formatted_prompt += "\n<context {}> {} </context {}>".format(
+                prompt_text += "\n<context {}> {} </context {}>".format(
                     i + 1, doc.strip("\n"), i + 1
                 )
-            formatted_prompt += '\n'
-        formatted_prompt += "\nASSISTANT: "
-        print("\n" + formatted_prompt, end="")
-        input_ids = tokenizer(formatted_prompt, return_tensors="pt").input_ids
+            prompt_text += '\n'
+
+        prompt_text += "USER: " + prompt + "\n\nASSISTANT: "
+        print("\n" + prompt_text, end="")
+        input_ids = tokenizer(prompt_text, return_tensors="pt").input_ids
         history_token_ids += input_ids.tolist()[0]
         input_ids = input_ids.to(model.device)
         seq_len = input_ids.shape[1]
