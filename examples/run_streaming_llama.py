@@ -114,11 +114,6 @@ def streaming_inference(
                 history_token_ids,
             )
 
-        if past_key_values is not None:
-            past_key_values = (
-                past_key_values[0].to("cuda"),
-                past_key_values[1].to("cuda"),
-            )
         past_key_values, generated_ids = greedy_generate(
             model, tokenizer, input_ids, past_key_values, max_gen_len=max_gen_len
         )
