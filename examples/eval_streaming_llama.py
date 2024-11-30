@@ -265,7 +265,7 @@ if __name__ == "__main__":
         "--model_name_or_path", type=str, default="lmsys/vicuna-7b-v1.3"
     )
     parser.add_argument("--data_root", type=str, default="data/")
-    parser.add_argument("--dataset_name", type=str, default="unified_chip2")
+    parser.add_argument("--dataset_name", type=str, default="unified_chip2_small")
     parser.add_argument("--enable_streaming", action="store_true")
     parser.add_argument("--enable_rag", action="store_true")
     parser.add_argument("--start_size", type=int, default=4)
