@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 
 data/embeddings.txt
+data/evicted.txt

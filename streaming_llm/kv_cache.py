@@ -64,13 +64,38 @@ class StartRecentKVCache:
             for k, v in past_key_values
         ]
 
-    def evict_for_space(self, past_key_values, num_coming):
+    def evict_for_space(self, tokenizer, past_key_values, num_coming, history_token_ids):
         if past_key_values is None:
-            return None
+            return None, history_token_ids
         seq_len = past_key_values[0][0].size(self.k_seq_dim)
         if seq_len + num_coming <= self.cache_size:
-            return past_key_values
-        return [
+            return past_key_values, history_token_ids
+        
+        evicted_tokens_index_start = self.start_size
+        evicted_tokens_index_end = seq_len - self.recent_size + num_coming
+        evicted_tokens_ids = history_token_ids[
+            evicted_tokens_index_start:evicted_tokens_index_end
+        ]
+        evicted_tokens_text = " ".join(
+            tokenizer.decode(
+                evicted_tokens_ids,
+                skip_special_tokens=True,
+                clean_up_tokenization_spaces=True,
+                spaces_between_special_tokens=False,
+            )
+            .strip()
+            .split(" ")
+        )
+        
+        with open("data/evicted.txt", "a") as file:
+            file.writelines([evicted_tokens_text.strip("\n")])
+        
+        history_token_ids = (
+            history_token_ids[0:evicted_tokens_index_start]
+            + history_token_ids[evicted_tokens_index_end:]
+        )
+        
+        new_past_key_values = [
             [
                 torch.cat(
                     [
@@ -93,6 +118,7 @@ class StartRecentKVCache:
             ]
             for k, v in past_key_values
         ]
+        return new_past_key_values, history_token_ids
 
     def evict_for_space_rag(
         self, model, tokenizer, index, past_key_values, num_coming, history_token_ids
@@ -149,7 +175,7 @@ class StartRecentKVCache:
         # print()
         index.add(embedded_chunks)
         with open("data/embeddings.txt", "a") as file:
-            file.writelines([chunk.replace("\n", "\\n") + "\n" for chunk in chunks])
+            file.writelines([chunk.strip("\n") + "\n" for chunk in chunks])
         # print(
         #     ">>> Inserted {} chunks in the db. Total entries: {}".format(
         #         len(embedded_chunks), index.ntotal

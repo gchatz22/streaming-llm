@@ -54,7 +54,7 @@ def greedy_generate(model, tokenizer, input_ids, past_key_values, max_gen_len):
         if pred_token_idx == tokenizer.eos_token_id:
             break
     print(" ".join(generated_text[pos:]), flush=True)
-    return past_key_values
+    return past_key_values, generated_ids
 
 @torch.no_grad()
 def greedy_generate_rag(model, tokenizer, input_ids, past_key_values, max_gen_len):
@@ -111,7 +111,7 @@ def retrieve_from_db(model, tokenizer, index, query):
                 break
             # NOTE this is a hyperparameter, I think 1 makes sense
             # NOTE ideally it should be 0.5
-            if distances[i] < 1:
+            if distances[i] < 0.25:
                 docs.append(lines[query_idx])
 
     return docs
@@ -119,6 +119,7 @@ def retrieve_from_db(model, tokenizer, index, query):
 @torch.no_grad()
 def streaming_inference(model, tokenizer, prompts, kv_cache=None, max_gen_len=1000):
     past_key_values = None
+    history_token_ids = []
     for idx, prompt in enumerate(prompts):
         prompt = "USER: " + prompt + "\n\nASSISTANT: "
         print("\n" + prompt, end="")
@@ -127,11 +128,17 @@ def streaming_inference(model, tokenizer, prompts, kv_cache=None, max_gen_len=10
         seq_len = input_ids.shape[1]
         if kv_cache is not None:
             space_needed = seq_len + max_gen_len
-            past_key_values = kv_cache.evict_for_space(past_key_values, space_needed)
+            past_key_values, history_token_ids = kv_cache.evict_for_space(
+                tokenizer,
+                past_key_values,
+                space_needed,
+                history_token_ids
+            )
 
-        past_key_values = greedy_generate(
+        past_key_values, generated_ids = greedy_generate(
             model, tokenizer, input_ids, past_key_values, max_gen_len=max_gen_len
         )
+        history_token_ids += generated_ids
 
 @torch.no_grad()
 def streaming_inference_rag(
@@ -161,20 +168,22 @@ def streaming_inference_rag(
         seq_len = input_ids.shape[1]
         if kv_cache is not None:
             space_needed = seq_len + max_gen_len
-            past_key_values, history_token_ids = kv_cache.evict_for_space_rag(
-                model,
+            past_key_values, history_token_ids = kv_cache.evict_for_space(
                 tokenizer,
-                index,
                 past_key_values,
                 space_needed,
-                history_token_ids,
+                history_token_ids
             )
 
         past_key_values, generated_ids = greedy_generate_rag(
             model, tokenizer, input_ids, past_key_values, max_gen_len=max_gen_len
         )
         history_token_ids += generated_ids
-
+        # add prompt to index
+        embedded_chunk = embed_text(prompt, model, tokenizer)
+        index.add(embedded_chunk)
+        with open("data/embeddings.txt", "a") as file:
+            file.writelines([prompt.strip("\n")])
 
 def main(args):
     model_name_or_path = args.model_name_or_path
@@ -206,6 +215,8 @@ def main(args):
         embeddings_dimension = None
         if "Llama-2-7b" in args.model_name_or_path:
             embeddings_dimension = 4096
+        if "Llama-2-13b" in args.model_name_or_path:
+            embeddings_dimension = 5120
         elif "vicuna-7b-v1.3" in args.model_name_or_path:
             embeddings_dimension = 4096
         else:
@@ -213,6 +224,8 @@ def main(args):
 
         index = faiss.IndexFlatL2(embeddings_dimension)
         with open("data/embeddings.txt", "w") as file:
+            pass
+        with open("data/evicted.txt", "w") as file:
             pass
 
         if index.ntotal == 0:

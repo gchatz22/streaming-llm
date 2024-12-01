@@ -225,7 +225,7 @@ def main(args):
         kv_cache = None
     if args.enable_rag:
         embeddings_dimension = None
-        if "Llama-2-7b" in args.model_name_or_path:
+        if "llama-2-7b" in args.model_name_or_path:
             embeddings_dimension = 4096
         elif "vicuna-7b-v1.3" in args.model_name_or_path:
             embeddings_dimension = 4096
@@ -262,7 +262,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--model_name_or_path", type=str, default="lmsys/vicuna-7b-v1.3"
+        "--model_name_or_path", type=str, default="meta-llama/llama-2-7b-chat-hf"
     )
     parser.add_argument("--data_root", type=str, default="data/")
     parser.add_argument("--dataset_name", type=str, default="unified_chip2_small")
