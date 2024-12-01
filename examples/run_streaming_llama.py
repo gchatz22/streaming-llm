@@ -183,7 +183,8 @@ def streaming_inference_rag(
         embedded_chunk = embed_text(prompt, model, tokenizer)
         index.add(embedded_chunk)
         with open("data/embeddings.txt", "a") as file:
-            file.writelines([prompt.strip("\n")])
+            file.writelines([prompt.strip("\n") + '\n'])
+
 
 def main(args):
     model_name_or_path = args.model_name_or_path
@@ -252,7 +253,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--model_name_or_path", type=str, default="lmsys/vicuna-7b-v1.3"
+        "--model_name_or_path", type=str, default="meta-llama/Llama-2-13b-chat-hf"
     )
     parser.add_argument("--data_root", type=str, default="data/")
     parser.add_argument("--dataset_name", type=str, default="mt_bench")
