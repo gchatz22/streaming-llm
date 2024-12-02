@@ -16,25 +16,7 @@ from tqdm import tqdm
 from streaming_llm.utils import load, download_url, load_jsonl, embed_text
 from streaming_llm.enable_streaming_llm import enable_streaming_llm
 
-
-
-def retrieve_from_db(model, tokenizer, index, query):
-    k = 2
-    embedded_query = embed_text(query, model, tokenizer)
-    distances, indices = index.search(embedded_query, k)
-    distances, indices = distances[0], indices[0]
-    docs = []
-    with open("data/embeddings.txt", "r") as file:
-        lines = file.readlines()
-        for i, query_idx in enumerate(indices):
-            if query_idx == -1:
-                break
-            # NOTE this is a hyperparameter, I think 1 makes sense
-            # NOTE ideally it should be 0.5
-            if distances[i] < 1:
-                docs.append(lines[query_idx])
-
-    return docs
+from run_streaming_llama import retrieve_from_db
 
 
 @torch.no_grad()
@@ -68,7 +50,7 @@ def calculate_perplexity_with_cache(model, tokenizer, input_ids, past_key_values
     past_key_values = outputs.past_key_values
     # print('test')
     # Extract log probabilities for response tokens
-    response_start_idx = input_ids.shape[1] - response_ids.shape[1]  # Start of the response in logits
+    response_start_idx = input_ids.shape[1] - response_ids.shape[1] - 1   # Start of the response in logits
     log_probs = torch.nn.functional.log_softmax(logits[:, response_start_idx - 1:-1, :], dim=-1)
     target_log_probs = log_probs.gather(2, response_ids.unsqueeze(-1)).squeeze(-1)
 
@@ -102,7 +84,7 @@ def streaming_inference_rag_with_perplexity(model, tokenizer, prompts, responses
         retrieved_docs = retrieve_from_db(model, tokenizer, index, prompt)
         if retrieved_docs:
             prompt_text += (
-                "Providing below some context that you may or may not find useful. \n"
+                "\nProviding below some context that you may or may not find useful. \n"
             )
             prompt_text += "CONTEXT: "
             for i, doc in enumerate(retrieved_docs):
@@ -113,7 +95,7 @@ def streaming_inference_rag_with_perplexity(model, tokenizer, prompts, responses
         # formatted_prompt += "\nASSISTANT: "
 
 
-        prompt_text += "USER: " + prompt + "\n\nASSISTANT: " + responses[idx]
+        prompt_text += "USER: " + prompt + "\nASSISTANT: " + responses[idx] + '\n'
         # print("\n" + prompt_text, end="")
         
         response_ids = tokenizer(responses[idx], return_tensors="pt").input_ids.to(model.device)
@@ -125,20 +107,25 @@ def streaming_inference_rag_with_perplexity(model, tokenizer, prompts, responses
         seq_len = input_ids.shape[1]
         if kv_cache is not None:
             space_needed = seq_len
-            past_key_values, history_token_ids = kv_cache.evict_for_space_rag(
-                model,
+            past_key_values, history_token_ids = kv_cache.evict_for_space(
                 tokenizer,
-                index,
                 past_key_values,
                 space_needed,
-                history_token_ids,
+                history_token_ids
             )
-
         # Calculate perplexity for the response
         # response = responses[idx]
         perplexity, past_key_values = calculate_perplexity_with_cache(
             model, tokenizer, input_ids, past_key_values, response_ids, kv_cache
         )
+
+        # history_token_ids += generated_ids
+        # add prompt to index
+        embedded_chunk = embed_text(prompt, model, tokenizer)
+        index.add(embedded_chunk)
+        with open("data/embeddings.txt", "a") as file:
+            file.writelines([prompt.strip("\n") + '\n'])
+
         perplexities.append(perplexity)
         # print(f"\nPerplexity: {perplexity}")
     return perplexities
@@ -162,19 +149,27 @@ def streaming_inference_with_perplexity(model, tokenizer, prompts, responses, kv
     """
     past_key_values = None
     perplexities = []
+    history_token_ids = []
     for idx, prompt in enumerate(prompts):
-        prompt_text = "USER: " + prompt + "\n\nASSISTANT: " + responses[idx]
-        # print("\n" + prompt_text, end="")
+        prompt_text = "USER: " + prompt + "\nASSISTANT: " + responses[idx] + '\n'
+        
+        # print(prompt_text)
         
         response_ids = tokenizer(responses[idx], return_tensors="pt").input_ids.to(model.device)
 
         input_ids = tokenizer(prompt_text, return_tensors="pt").input_ids
+        history_token_ids += input_ids.tolist()[0]
         input_ids = input_ids.to(model.device)
         # print(input_ids)
         seq_len = input_ids.shape[1]
         if kv_cache is not None:
             space_needed = seq_len
-            past_key_values = kv_cache.evict_for_space(past_key_values, space_needed)
+            past_key_values, history_token_ids = kv_cache.evict_for_space(
+                tokenizer,
+                past_key_values,
+                space_needed,
+                history_token_ids
+            )
 
         # Calculate perplexity for the response
         # response = responses[idx]
@@ -223,10 +218,15 @@ def main(args):
         )
     else:
         kv_cache = None
+
+    with open("data/evicted.txt", "w") as file:
+        pass
     if args.enable_rag:
         embeddings_dimension = None
-        if "llama-2-7b" in args.model_name_or_path:
+        if "Llama-2-7b" in args.model_name_or_path:
             embeddings_dimension = 4096
+        elif "Llama-2-13b" in args.model_name_or_path:
+            embeddings_dimension = 5120
         elif "vicuna-7b-v1.3" in args.model_name_or_path:
             embeddings_dimension = 4096
         else:

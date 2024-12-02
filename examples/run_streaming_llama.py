@@ -121,9 +121,13 @@ def streaming_inference(model, tokenizer, prompts, kv_cache=None, max_gen_len=10
     past_key_values = None
     history_token_ids = []
     for idx, prompt in enumerate(prompts):
-        prompt = "USER: " + prompt + "\n\nASSISTANT: "
-        print("\n" + prompt, end="")
+        if past_key_values is None:
+            prompt = "USER: " + prompt + "\nASSISTANT: "
+        else:
+            prompt = "\nUSER: " + prompt + "\nASSISTANT: "
+        print(prompt, end='')
         input_ids = tokenizer(prompt, return_tensors="pt").input_ids
+        history_token_ids += input_ids.tolist()[0]
         input_ids = input_ids.to(model.device)
         seq_len = input_ids.shape[1]
         if kv_cache is not None:
@@ -151,7 +155,7 @@ def streaming_inference_rag(
         retrieved_docs = retrieve_from_db(model, tokenizer, index, prompt)
         if retrieved_docs:
             prompt_text += (
-                "Providing below some context that you may or may not find useful. \n"
+                "\nProviding below some context that you may or may not find useful. \n"
             )
             prompt_text += "CONTEXT: "
             for i, doc in enumerate(retrieved_docs):
@@ -159,9 +163,11 @@ def streaming_inference_rag(
                     i + 1, doc.strip("\n"), i + 1
                 )
             prompt_text += '\n'
-
-        prompt_text += "USER: " + prompt + "\n\nASSISTANT: "
-        print("\n" + prompt_text, end="")
+        if prompt_text == '' and past_key_values is None:
+            prompt_text += "USER: " + prompt + "\nASSISTANT: "
+        else:
+            prompt_text += "\nUSER: " + prompt + "\nASSISTANT: "
+        print(prompt_text, end='')
         input_ids = tokenizer(prompt_text, return_tensors="pt").input_ids
         history_token_ids += input_ids.tolist()[0]
         input_ids = input_ids.to(model.device)
@@ -212,6 +218,9 @@ def main(args):
         )
     else:
         kv_cache = None
+
+    with open("data/evicted.txt", "w") as file:
+            pass
     if args.enable_rag:
         embeddings_dimension = None
         if "Llama-2-7b" in args.model_name_or_path:
@@ -226,8 +235,7 @@ def main(args):
         index = faiss.IndexFlatL2(embeddings_dimension)
         with open("data/embeddings.txt", "w") as file:
             pass
-        with open("data/evicted.txt", "w") as file:
-            pass
+        
 
         if index.ntotal == 0:
             print("Vector DB is initialized and is empty.")

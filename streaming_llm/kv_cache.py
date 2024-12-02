@@ -76,19 +76,38 @@ class StartRecentKVCache:
         evicted_tokens_ids = history_token_ids[
             evicted_tokens_index_start:evicted_tokens_index_end
         ]
-        evicted_tokens_text = " ".join(
-            tokenizer.decode(
-                evicted_tokens_ids,
-                skip_special_tokens=True,
-                clean_up_tokenization_spaces=True,
-                spaces_between_special_tokens=False,
-            )
-            .strip()
-            .split(" ")
+        # print(evicted_tokens_index_start)
+        # print(evicted_tokens_index_end)
+        # print('evict')
+        # print(tokenizer.decode(
+        #         evicted_tokens_ids,
+        #         skip_special_tokens=True,
+        #         clean_up_tokenization_spaces=False,
+        #         spaces_between_special_tokens=False,
+        #     ))
+        # evicted_tokens_text = " ".join(
+        #     tokenizer.decode(
+        #         evicted_tokens_ids,
+        #         skip_special_tokens=True,
+        #         clean_up_tokenization_spaces=False,
+        #         spaces_between_special_tokens=False,
+        #     )
+        #     .strip()
+        #     .split(" ")
+        # )
+        decoded_text = tokenizer.decode(
+            evicted_tokens_ids,
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=True,
         )
+
+        # Split by lines to avoid adding spaces after newlines
+        lines = [line.strip() for line in decoded_text.split("\n")]  # Strip spaces within lines
+        evicted_tokens_text = "\n".join(lines)
+        # print(evicted_tokens_text)
         
         with open("data/evicted.txt", "a") as file:
-            file.writelines([evicted_tokens_text.strip("\n")])
+            file.writelines([evicted_tokens_text])
         
         history_token_ids = (
             history_token_ids[0:evicted_tokens_index_start]
