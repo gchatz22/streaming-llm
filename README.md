@@ -1,6 +1,6 @@
 # Efficient Streaming Language Models with Attention Sinks with Retrieval Augmented Generation
 
-Fork of [[StreamingLLM]https://github.com/mit-han-lab/streaming-llm] for MIT 6.5940 final project.
+Fork of https://github.com/mit-han-lab/streaming-llm for MIT 6.5940 final project.
 
 ## Usage
 
