@@ -2,6 +2,10 @@
 
 Fork of https://github.com/mit-han-lab/streaming-llm for MIT 6.5940 final project.
 
+## Demo
+
+[Watch the demo on Google Drive]([https://drive.google.com/path-to-your-file](https://drive.google.com/file/d/1dGzbcO3nt8dae7uERvL4-8KWxn-LmqlU/view))
+
 ## Usage
 
 ### Environment Setup
