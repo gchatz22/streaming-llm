@@ -1,4 +1,4 @@
-# Efficient Streaming Language Models with Attention Sinks 
+# Efficient Streaming Language Models with Attention Sinks with Retrieval Augmented Generation
 [[paper](http://arxiv.org/abs/2309.17453)] [[slides](assets/StreamingLLM.pdf)][[video](https://youtu.be/hvJsEzP34o8)]
 
 ![schemes](figures/schemes.png)
@@ -32,6 +32,8 @@ conda activate streaming
 pip install torch torchvision torchaudio
 pip install transformers==4.33.0 accelerate datasets evaluate wandb scikit-learn scipy sentencepiece
 
+conda install -c conda-forge faiss-gpu
+
 python setup.py develop
 ```
 
@@ -39,6 +41,12 @@ python setup.py develop
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 python examples/run_streaming_llama.py  --enable_streaming
+```
+
+### Run Streaming Llama Chatbot with RAG
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python examples/run_streaming_llama.py  --enable_streaming --enable_rag
 ```
 
 ## FAQ
